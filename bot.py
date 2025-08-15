@@ -5,6 +5,7 @@ Telegram Vyakarana Bot
 """
 
 import os
+import time
 import logging
 import datetime
 
@@ -58,6 +59,19 @@ from constants import (
 from utils.functions import fold
 from utils.dhatupatha import DhatuPatha, DHATU_LANG, LAKARA_LANG, VALUES_LANG
 from utils.shabdapatha import ShabdaPatha
+
+###############################################################################
+
+LOGGER = logging.getLogger()
+if not LOGGER.hasHandlers():
+    LOGGER.addHandler(logging.StreamHandler())
+
+if config.VERBOSE:
+    LOGGER.setLevel(logging.INFO)
+
+if config.DEBUG:
+    LOGGER.setLevel(logging.DEBUGG)
+LOGGER.setLevel(logging.INFO)
 
 ###############################################################################
 # Initialization
@@ -251,11 +265,16 @@ def format_conjugations(dhatu, rupaani, full_flag):
 # Basic Event Handlers
 
 
+# Debug
+@bot.on(events.NewMessage)
+async def handle_message(event):
+    LOGGER.debug(event)
+
 # Start
 @bot.on(events.NewMessage(pattern='^/start'))
 async def start(event):
     """Send a message when the command /start is issued."""
-
+    LOGGER.debug("START")
     await event.respond('\n'.join(MESSAGE_INTRODUCTION), parse_mode='html')
 
     # call help handler
@@ -273,7 +292,7 @@ async def start(event):
 ))
 async def help_handler(event):
     """Display Help Message"""
-
+    LOGGER.debug("HELP")
     help_message = [MESSAGE_AVAILABLE_COMMANDS]
 
     for _, _command in COMMAND_DETAILS.items():
@@ -716,6 +735,8 @@ async def process_non_command(event):
     command_found = False
     for _command_id, _handler in COMMAND_HANDLERS.items():
         _command = COMMAND_DETAILS[_command_id]
+        LOGGER.info(_command_id)
+        LOGGER.info(_command)
         _commands = [
             sanscript.transliterate(
                 sanskrit_word,
@@ -755,10 +776,24 @@ async def process_non_command(event):
 ###############################################################################
 
 
-def main():
-    bot.start(bot_token=config.TelegramConfig.bot_token)
-    bot.run_until_disconnected()
+def start_bot(client):
+    client.start(bot_token=config.TelegramConfig.bot_token)
+    try:
+        client.run_until_disconnected()
+    except ConnectionError as e:
+        print(f"ConnectionError: {e}")
+        time.sleep(5)  # wait before retrying
+        start_bot(client)
 
+
+def main():
+    if config.TelegramConfig.use_custom_datacenter:
+        bot.session.set_dc(
+            config.TelegramConfig.dc_id,
+            config.TelegramConfig.dc_server_address,
+            config.TelegramConfig.dc_port
+        )
+    start_bot(bot)
 
 ###############################################################################
 
